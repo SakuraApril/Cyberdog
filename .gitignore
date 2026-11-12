@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ROS 2 / colcon 产物
+build/
+install/
+log/
+
+# 本地备份与实验分支（比赛期间的快照，不进仓库）
+*.bak
+*.bak_*
+*.backup
+backup*/
+planb/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 第三方文档（小米官方《开发者手册》，有版权，不随仓库分发）
+开发者手册.html

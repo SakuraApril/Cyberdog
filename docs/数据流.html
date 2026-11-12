@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仿真系统双通道控制数据流图</title>
+    <!-- 引入 Mermaid 用于图表渲染 -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        /* 学术风/论文风排版 */
+        body {
+            font-family: 'Times New Roman', 'SimSun', serif;
+            background-color: #f4f6f8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            color: #333;
+            margin: 0;
+        }
+
+        .paper-container {
+            background: white;
+            padding: 50px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border-radius: 8px;
+            max-width: 1000px;
+            width: 100%;
+        }
+
+        h2 {
+            text-align: center;
+            font-family: 'Arial', 'Microsoft YaHei', sans-serif;
+            color: #2c3e50;
+            margin-bottom: 40px;
+            font-weight: 600;
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+
+        .caption {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 14.5px;
+            font-weight: bold;
+            color: #444;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="paper-container">
+        <h2>基于状态机的四足机器人双通道控制架构与数据流</h2>
+        <div class="mermaid">
+            graph TD
+            %% 学术风配色定义
+            classDef layer1 fill:#E3F2FD,stroke:#1565C0,stroke-width:2px,color:#000,font-weight:bold
+            classDef layer2 fill:#FFF3E0,stroke:#EF6C00,stroke-width:2px,color:#000
+            classDef layer3 fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#000
+            classDef layer4 fill:#F3E5F5,stroke:#6A1B9A,stroke-width:2px,color:#000,stroke-dasharray: 5 5
+            classDef layer5 fill:#ECEFF1,stroke:#455A64,stroke-width:2px,color:#000
+            classDef action fill:#ffffff,stroke:#d32f2f,stroke-width:2px,color:#d32f2f,font-weight:bold
+
+            %% 层级划分
+            subgraph FSM ["1. 上层决策层 (FSM Demo / 业务逻辑)"]
+            P["prepare 函数<br />下发模式与参数"]:::layer1
+            W["walk 函数<br />连续下发运动指令"]:::layer1
+            end
+
+            subgraph BUS ["2. 数据总线层 (ROS / LCM 通信)"]
+            YAML("ROS 话题: yaml_parameter<br />[参数配置通道]"):::layer2
+            GAMEPAD("LCM 消息: gamepad_lcmt<br />[高频指令通道]"):::layer2
+            end
+
+            subgraph ADAPTER ["3. Gazebo 仿真适配层"]
+            SP["SimParam 节点<br />订阅并转换为内部参数请求"]:::layer3
+            LCMH["LCMHandler & LeggedPlugin<br />周期获取摇杆与按键事件"]:::layer3
+            end
+
+            subgraph IPC ["4. 进程间通信 (IPC)"]
+            SHM_P[("共享内存: Shared Memory<br />系统参数区")]:::layer4
+            SHM_C[("共享内存: Shared Memory<br />simToRobot 命令区")]:::layer4
+            end
+
+            subgraph CONTROL ["5. 底层控制进程 (SimulationBridge)"]
+            HCP["HandleControlParameters<br />修改 use_rc 和 control_mode"]:::layer5
+            CI["CommandInterface / PrepareCmd<br />动作指令预处理与通道选择"]:::layer5
+            G2C["Gamepad2Cmd<br />摇杆量映射为 vx/wz 速度"]:::layer5
+
+            EXEC((("底层运动学/动力学<br />步态执行"))):::action
+            end
+
+            %% ================= 数据流 1：配置链路 =================
+            P -- "use_rc = 0<br />control_mode = 12 (站稳)" --> YAML
+            YAML --> SP
+            SP -- "写入控制参数" --> SHM_P
+            SHM_P -- "读取更新" --> HCP
+
+            %% ================= 数据流 2：指令链路 =================
+            W -- "vx, wz (摇杆量)<br />切入 kLocomotion(11)" --> GAMEPAD
+            GAMEPAD --> LCMH
+            LCMH -- "写入高频指令" --> SHM_C
+            SHM_C -- "逐周期读取" --> CI
+            CI -- "路由指令" --> G2C
+            G2C -- "输出期望速度" --> EXEC
+
+            %% ================= 核心：交叉耦合与门控逻辑 =================
+            HCP -. "【关键门控条件】<br />当且仅当 use_rc = 0 时，<br />控制层才允许放行 Gamepad 信号" .-> CI
+
+            %% 占位符排版优化
+            linkStyle 0,1,2,3 stroke:#1565C0,stroke-width:2px;
+            linkStyle 4,5,6,7,8,9 stroke:#EF6C00,stroke-width:2px;
+            linkStyle 10 stroke:#d32f2f,stroke-width:2px,stroke-dasharray: 4 4;
+        </div>
+        <div class="caption">
+            图 1: 系统控制双通道数据流架构（左侧为参数配置链路，右侧为高频指令链路，于底层接口完成逻辑交会）
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: { curve: 'basis', nodeSpacing: 50, rankSpacing: 60 }
+        });
+    </script>
+</body>
+
+</html>
